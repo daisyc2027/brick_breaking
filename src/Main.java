@@ -5,12 +5,13 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 class Paddle {
     int x, y, width, height, moveSpeed;
     Color color;
 
-    Paddle(int x, int y, int width, int height, int moveSpeed, Color color){
+    private Paddle(int x, int y, int width, int height, int moveSpeed, Color color){
         this.x = x;
         this.y = y;
         this.width = width;
@@ -45,30 +46,29 @@ class Paddle {
 class Ball{
     int x, y, diameter, xSpeed, ySpeed;
     Color color;
-    Ball(int x, int y, int diameter, int xSpeed, int ySpeed, Color color){
-        this.x = x;
+    private Ball(int x, int y, int diameter, int xSpeed, int ySpeed, Color color){
+        this.x = x - diameter/2;
         this.y = y;
         this.diameter = diameter;
         this.xSpeed = xSpeed;
         this.ySpeed = ySpeed;
         this.color = color;
     }
-//    public static Ball getBall(int x, int y, int diameter, int xSpeed, int ySpeed, Color color){
-//        return new Ball(x, y, diameter,xSpeed, ySpeed, color);
-//    }
+    public static Ball getBall(int x, int y, int diameter, int xSpeed, int ySpeed, Color color){
+        return new Ball(x, y, diameter,xSpeed, ySpeed, color);
+    }
     public void move(int width, int height){
+        System.out.println("why");
         x += xSpeed;
         y += ySpeed;
-
         collideWall(width, height);
-
     }
     public void collideWall(int width, int height){
         if(x<0 || x + diameter > width){
             xSpeed = -xSpeed;
         }
 
-        if(y < 0 || y + diameter > height){
+        if(y < 0 ){
             ySpeed = -ySpeed;
         }
     }
@@ -88,85 +88,132 @@ class Brick{
         this.color = color;
     }
 
-    public int getHit(int health){
-        return health - 1;
-    }
-
     public void draw(Graphics g){
         g.setColor(color);
         g.fillRect(x, y, length, length);
+        g.setColor(Color.BLACK);
+        g.drawRect(x, y, length, length);
     }
 }
 
 class GamePanel extends JPanel implements KeyListener, ActionListener {
-    Paddle paddle = new Paddle(150, 600, 100, 20, 20, Color.BLACK);
-    Ball ball = new Ball(paddle.width/2+paddle.x-15,paddle.y+30,30,5,5, Color.BLUE);
+    Paddle paddle = Paddle.getPaddle(150, 600, 100, 20, 20, Color.BLACK);
+    Ball ball = Ball.getBall(paddle.x + paddle.width / 2, paddle.y - 20, 20, 5, -5, Color.BLUE);
     ArrayList<Brick> listOfBricks = new ArrayList<>();
-    int rows, bricksPerRow;
+    int bricksPerRow, rows;
+    Timer timer;
+    JLabel score = new JLabel("0");
+    boolean gameOver = false;
+    boolean gameStarted = false;
 
-    public GamePanel(){
+    public GamePanel(int bricksPerRow, int rows) {
         setFocusable(true);
         addKeyListener(this);
-//        int currentX = 0, currentY = 0;
-//        for(int i = 0; i<rows; i++){
-//            for (int j = 0; i <bricksPerRow; j++){
-//                listOfBricks.add(new Brick(currentX,currentY,50, Color.YELLOW));
-//                currentX += 50;
-//            }
-//            currentY +=50;
-//        }
+        add(score);
+        this.bricksPerRow = bricksPerRow;
+        this.rows = rows;
+        int currentX = 10, currentY = 50;
+        Color color1 = Color.YELLOW;
+        Color color2 = Color.CYAN;
+        Color color3 = Color.MAGENTA;
+        for (int i = 0; i < rows; i++) {
+            Color brickColor;
+            if ((i / 2) % 3 == 0) {
+                brickColor = color1;
+            } else if ((i / 2) % 3 == 1) {
+                brickColor = color2;
+            } else {
+                brickColor = color3;
+            }
+            for (int j = 0; j < bricksPerRow; j++) {
+                listOfBricks.add(new Brick(currentX, currentY, 50, brickColor));
+                currentX += 50;
+            }
+            currentX = 10;
+            currentY += 52;
+        }
 
-        Timer timer = new Timer(15, this);
+        this.timer = new Timer(15, this);
         timer.start();
     }
 
-    public boolean checkCollisionWithBrick(Brick brick, Ball ball){
+    public boolean checkGameOver(Ball ball) {
+        return ball.y + ball.diameter > getHeight();
+    }
+
+    public boolean checkCollisionWithBrick(Brick brick, Ball ball) {
+        boolean checkCollisionWithBrick;
         boolean xCollide = ball.x + ball.diameter > brick.x && ball.x < brick.x + brick.length;
         boolean yCollide = ball.y + ball.diameter > brick.y && ball.y < brick.y + brick.length;
 
-        return xCollide && yCollide;
-    }
 
-    public void collisionWithBrick(Brick brick, Ball ball){
-        if(checkCollisionWithBrick(brick, ball)){
+        checkCollisionWithBrick = xCollide && yCollide;
+
+
+        if (checkCollisionWithBrick) {
+            int currentScore = Integer.parseInt(score.getText());
+            currentScore += 1;
+            score.setText(String.valueOf(currentScore));
             ball.xSpeed = -ball.xSpeed;
             ball.ySpeed = -ball.ySpeed;
         }
+        return checkCollisionWithBrick;
     }
 
-    public boolean checkCollisionWithPaddle(Paddle paddle, Ball ball){
+    public void checkCollisionWithPaddle(Paddle paddle, Ball ball) {
+        boolean checkCollisionWithPaddle;
         boolean yCollide = paddle.y <= ball.y + ball.diameter && ball.y + ball.diameter <= paddle.y + paddle.height;
-        boolean xCollide = ball.x+ball.diameter >= paddle.x && ball.x <= paddle.x + paddle.width;
+        boolean xCollide = ball.x + ball.diameter >= paddle.x && ball.x <= paddle.x + paddle.width;
 
-        return yCollide && xCollide;
-    }
-    public void collisionWithPaddle(Paddle paddle, Ball ball){
-        if(checkCollisionWithPaddle(paddle, ball)){
-            ball.xSpeed = -ball.xSpeed;
+        checkCollisionWithPaddle = yCollide && xCollide;
+
+        if (checkCollisionWithPaddle) {
             ball.ySpeed = -ball.ySpeed;
         }
     }
 
-    public void paintComponent(Graphics g){
+    @Override
+    public void paintComponent(Graphics g) {
         super.paintComponent(g);
         paddle.draw(g);
         ball.draw(g);
-        listOfBricks.getFirst().draw(g);
+        for (Brick brick : listOfBricks) {
+            brick.draw(g);
+        }
+
+        if(gameOver){
+            g.setColor(Color.RED);
+            g.setFont(new Font("Arial", Font.BOLD, 30));
+            g.drawString("Game Over!", getWidth()/2 - 80, getHeight()/2);
+        } else if(!gameStarted) {
+            g.setColor(Color.BLACK);
+            g.setFont(new Font("Arial", Font.BOLD, 20));
+            g.drawString("Press SPACE to start", getWidth()/2 - 100, getHeight()/2);
+        }
     }
 
     @Override
     public void keyTyped(KeyEvent e) {
-
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if(e.getKeyCode() == KeyEvent.VK_RIGHT){//right arrow
-            paddle.movePaddleRight(getWidth());
+        if (!gameStarted && e.getKeyCode() == KeyEvent.VK_SPACE) {
+            gameStarted = true;
         }
 
-        if(e.getKeyCode() == KeyEvent.VK_LEFT){
+        if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
+            paddle.movePaddleRight(getWidth());
+            if (!gameStarted) {
+                ball.x = paddle.x + paddle.width/2 - ball.diameter/2;
+            }
+        }
+
+        if (e.getKeyCode() == KeyEvent.VK_LEFT) {
             paddle.movePaddleLeft();
+            if (!gameStarted) {
+                ball.x = paddle.x + paddle.width/2 - ball.diameter/2;
+            }
         }
         repaint();
     }
@@ -178,19 +225,37 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
+        if(gameOver || !gameStarted){
+            return;
+        }
+        if(checkGameOver(ball)){
+            gameOver = true;
+            timer.stop();
+            repaint();
+            return;
+        }
+
         ball.move(getWidth(), getHeight());
-        collisionWithPaddle(paddle, ball);
-        collisionWithBrick(listOfBricks.getFirst(), ball);
+        checkCollisionWithPaddle(paddle, ball);
+
+        Iterator<Brick> iterator = listOfBricks.iterator();
+        while (iterator.hasNext()) {
+            Brick brick = iterator.next();
+            if (checkCollisionWithBrick(brick, ball)) {
+                iterator.remove();
+                break;
+            }
+        }
         repaint();
+
     }
 }
-
 public class Main {
     public static void main(String[] args) {
         JFrame frame = new JFrame("Brick breaker");
-        GamePanel game = new GamePanel();
+        GamePanel game = new GamePanel(8,6);
         frame.add(game);
-        frame.setSize(400,700);
+        frame.setSize(420,700);
 
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
